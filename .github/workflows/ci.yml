@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & type-check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Ruff lint
+        run: uv run ruff check src/ scripts/
+
+      - name: Ruff format check
+        run: uv run ruff format --check src/ scripts/
+
+      - name: mypy type-check
+        run: uv run mypy src/local_rag --ignore-missing-imports
+
+  unit-tests:
+    name: Unit tests (no models required)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Run tests
+        env:
+          # Provide dummy env values so Settings() can be instantiated without a .env
+          LLM_BASE_URL: "http://127.0.0.1:8080/v1"
+          LLM_MODEL: "local-chat"
+          EMBED_BASE_URL: "http://127.0.0.1:8081/v1"
+          EMBED_MODEL: "local-embed"
+          VLM_BASE_URL: "http://127.0.0.1:8082/v1"
+          VLM_MODEL: "local-vlm"
+          OPENAI_API_KEY: "sk-no-key"
+        run: uv run pytest tests/ -v --tb=short

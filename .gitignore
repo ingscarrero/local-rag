@@ -1,0 +1,25 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Environment — copy .env.example and fill in your values; never commit secrets
+.env
+
+# Runtime artefacts — generated at run time, not part of source
+storage/
+data/*.pdf
+!data/.gitkeep
+
+# macOS
+.DS_Store
+
+# IDE / editor
+.claude/
+.idea/
+.vscode/
