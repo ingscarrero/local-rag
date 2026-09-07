@@ -6,30 +6,43 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  # Dummy values so Settings() can be instantiated without a .env. No model
+  # server is ever contacted: every LLM/embedding/vision call is faked in tests.
+  LLM_BASE_URL: "http://127.0.0.1:8080/v1"
+  LLM_MODEL: "local-chat"
+  EMBED_BASE_URL: "http://127.0.0.1:8081/v1"
+  EMBED_MODEL: "local-embed"
+  VLM_BASE_URL: "http://127.0.0.1:8082/v1"
+  VLM_MODEL: "local-vlm"
+  OPENAI_API_KEY: "sk-no-key"
+  ANONYMIZED_TELEMETRY: "False"
+
 jobs:
   lint-and-typecheck:
     name: Lint & type-check
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v10
         with:
           version: "latest"
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync --extra dev
 
       - name: Ruff lint
-        run: uv run ruff check src/ scripts/
+        run: uv run ruff check .
 
       - name: Ruff format check
-        run: uv run ruff format --check src/ scripts/
+        run: uv run ruff format --check .
 
       - name: mypy type-check
         run: uv run mypy src/local_rag --ignore-missing-imports
@@ -39,27 +52,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v10
         with:
           version: "latest"
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync --extra dev
 
-      - name: Run tests
-        env:
-          # Provide dummy env values so Settings() can be instantiated without a .env
-          LLM_BASE_URL: "http://127.0.0.1:8080/v1"
-          LLM_MODEL: "local-chat"
-          EMBED_BASE_URL: "http://127.0.0.1:8081/v1"
-          EMBED_MODEL: "local-embed"
-          VLM_BASE_URL: "http://127.0.0.1:8082/v1"
-          VLM_MODEL: "local-vlm"
-          OPENAI_API_KEY: "sk-no-key"
-        run: uv run pytest tests/ -v --tb=short
+      - name: Run tests with coverage
+        # Coverage flags and the 95% floor live in [tool.pytest.ini_options].
+        run: uv run pytest tests/ --tb=short
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: error
