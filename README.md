@@ -25,7 +25,7 @@ flowchart LR
         Q([question]) --> route
         route -->|direct| direct["direct answer"]
         route -->|retrieve| retrieve["retrieve<br/>text + visual"] --> grade
-        grade -->|"none relevant, < cap"| rewrite --> retrieve
+        grade -->|"none relevant, below cap"| rewrite --> retrieve
         grade -->|relevant| generate --> A([answer + citations])
     end
     Chroma -.-> retrieve

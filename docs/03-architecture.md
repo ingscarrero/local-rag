@@ -117,8 +117,8 @@ flowchart TD
     route -- "route == direct" --> answer_directly --> E((END))
     route -- "route == retrieve" --> retrieve
     retrieve --> grade
-    grade -- "relevant > 0<br/>or iterations ≥ cap" --> generate --> E
-    grade -- "relevant == 0<br/>and iterations < cap" --> rewrite
+    grade -- "any relevant<br/>or iterations at cap" --> generate --> E
+    grade -- "none relevant<br/>and iterations below cap" --> rewrite
     rewrite --> retrieve
 ```
 
@@ -138,7 +138,7 @@ sequenceDiagram
     G->>L: route? (JSON, max 20 tokens)
     L-->>G: {"route": "retrieve"}
 
-    loop until relevant > 0, capped at MAX_AGENT_ITERATIONS (3)
+    loop until any passage is relevant, capped at MAX_AGENT_ITERATIONS (3)
         G->>TS: query(current query, top_k = TEXT_TOP_K)
         TS-->>G: text + caption hits (cosine)
         G->>CS: query(current query, top_k = VISUAL_TOP_K)
