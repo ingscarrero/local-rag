@@ -10,9 +10,11 @@ similarity search retrieves prose and figure descriptions together.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import chromadb
+from chromadb.api.types import Metadata
 
 from ..config import settings
 from .. import models
@@ -48,22 +50,26 @@ class TextStore:
             return
         if embeddings is None:
             embeddings = models.embed(texts)
-        self._col.upsert(ids=ids, documents=texts, metadatas=metadatas, embeddings=embeddings)
+        # Chroma's stubs want Mapping/Sequence types; re-wrap so mypy sees the exact shape.
+        metas: list[Metadata] = list(metadatas)
+        embs: list[Sequence[float]] = list(embeddings)
+        self._col.upsert(ids=ids, documents=texts, metadatas=metas, embeddings=embs)
 
     def query(self, query: str, top_k: int = 5) -> list[TextHit]:
-        q_emb = models.embed([query])[0]
+        q_embs: list[Sequence[float]] = [models.embed([query])[0]]
         res = self._col.query(
-            query_embeddings=[q_emb],
+            query_embeddings=q_embs,
             n_results=top_k,
             include=["documents", "metadatas", "distances"],
         )
         hits: list[TextHit] = []
+        # Each field is Optional in Chroma's result type; we asked for all three above.
         ids = res["ids"][0]
-        docs = res["documents"][0]
-        metas = res["metadatas"][0]
-        dists = res["distances"][0]
+        docs = (res["documents"] or [[]])[0]
+        metas = (res["metadatas"] or [[]])[0]
+        dists = (res["distances"] or [[]])[0]
         for _id, doc, meta, dist in zip(ids, docs, metas, dists):
-            hits.append(TextHit(id=_id, text=doc, score=1.0 - dist, metadata=meta or {}))
+            hits.append(TextHit(id=_id, text=doc, score=1.0 - dist, metadata=dict(meta or {})))
         return hits
 
     def count(self) -> int:
