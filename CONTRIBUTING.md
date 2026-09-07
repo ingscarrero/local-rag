@@ -9,25 +9,34 @@ local-first and reproducible.
 ```bash
 git clone https://github.com/ingscarrero/local-rag.git
 cd local-rag
-uv sync                # installs all deps including dev extras
+uv sync --extra dev    # runtime deps + pytest/ruff/mypy/pytest-cov
 cp .env.example .env   # configure for your runtime (LM Studio or llama.cpp)
 ```
+
+`uv sync` installs torch and transformers (≈ 1 GB on disk) but **no model
+weights** — those download only when you actually run `ingest`/`ask` with
+ColPali enabled. The test suite never loads them.
 
 ## Running checks locally
 
 ```bash
-# Lint + format
-uv run ruff check src/ scripts/
-uv run ruff format --check src/ scripts/
+# Lint + format (src, scripts, and tests)
+uv run ruff check .
+uv run ruff format --check .
 
 # Type check
 uv run mypy src/local_rag --ignore-missing-imports
 
-# Unit tests (no models required)
-uv run pytest tests/ -v
+# Unit tests with coverage (no models, no servers, no network; ~3 s)
+uv run pytest
 ```
 
-All three should be green before opening a PR. CI runs the same commands.
+All four should be green before opening a PR. CI runs the same commands and
+fails below **95 %** statement coverage (`--cov-fail-under` in `pyproject.toml`);
+`coverage.xml` is uploaded as a CI artifact. Every model call is faked at the
+`models._client` seam — see `tests/conftest.py` for the scripted
+OpenAI-compatible client and the store fakes, and reuse them rather than
+patching deeper.
 
 ## Project layout
 
@@ -48,7 +57,8 @@ src/local_rag/
     nodes.py         # route / retrieve / grade / rewrite / generate nodes
     graph.py         # StateGraph wiring + answer_question() entrypoint
   cli.py             # typer CLI (ingest / ask / status)
-docs/                # concept, methodology, architecture, setup, runbooks
+tests/               # hermetic unit tests; conftest.py holds the fakes
+docs/                # requirements, concepts, architecture, system design, ADRs, CLI reference, runbooks
 scripts/             # serve.sh / stop.sh (llama.cpp) + make_sample_pdf.py
 ```
 
@@ -59,9 +69,16 @@ scripts/             # serve.sh / stop.sh (llama.cpp) + make_sample_pdf.py
 - **Env-vars only for config.** Add new knobs to `config.py` as Pydantic fields,
   not as hard-coded values.
 - **Keep retrieval honest.** If you add a new retrieval path, add a test that
-  asserts the *right page wins the ranking* — not just that a result is returned.
-- **Update the relevant doc.** Architecture change → `docs/03-architecture.md`.
-  New setup step → `docs/04-setup.md` / the relevant runbook.
+  asserts the *right page wins the ranking* — not just that a result is returned
+  (see `tests/test_text_store.py` and `tests/test_colpali_store.py`, and
+  [ADR-0005](docs/adr/0005-pin-transformers-4x.md) for why).
+- **Don't bump `transformers` past 4.x** without re-running the real-model
+  ranking check in ADR-0005.
+- **Update the relevant doc.** Architecture change → `docs/03-architecture.md`
+  and `docs/06-system-design.md`. New requirement → `docs/00-requirements.md`.
+  New flag or env var → `docs/07-cli-reference.md`. New setup step →
+  `docs/04-setup.md` / the relevant runbook. A decision that would be costly to
+  reverse → a new record in `docs/adr/`. Add a line to `CHANGELOG.md`.
 
 ## Opening a PR
 

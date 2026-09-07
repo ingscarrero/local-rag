@@ -26,9 +26,9 @@ uv run local-rag ask "hello there"
 
 ## Checklist
 
-- [ ] `uv run ruff check src/ scripts/` passes
-- [ ] `uv run ruff format --check src/ scripts/` passes
+- [ ] `uv run ruff check .` passes
+- [ ] `uv run ruff format --check .` passes
 - [ ] `uv run mypy src/local_rag --ignore-missing-imports` passes
-- [ ] `uv run pytest tests/ -v` passes
-- [ ] Docs updated if behaviour / setup steps changed
+- [ ] `uv run pytest` passes (coverage ≥ 95 %)
+- [ ] Docs updated if behaviour / setup steps changed (`docs/`, `CHANGELOG.md`)
 - [ ] No cloud API keys or external model calls introduced
