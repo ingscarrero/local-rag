@@ -1,5 +1,10 @@
 # local-rag
 
+[![CI](https://github.com/ingscarrero/local-rag/actions/workflows/ci.yml/badge.svg)](https://github.com/ingscarrero/local-rag/actions/workflows/ci.yml)
+[![coverage](https://img.shields.io/badge/coverage-98%25-brightgreen)](https://github.com/ingscarrero/local-rag/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+
 **Fully-local agentic RAG over PDFs — with hybrid text + visual (ColPali) retrieval.**
 
 Point it at a folder of PDFs. It reads the prose, *looks at* the figures, charts and
@@ -7,16 +12,24 @@ tables, and answers questions with citations — using an agent that decides whe
 retrieve, grades what it finds, and re-queries when the evidence is weak. **No data
 leaves your machine.** Every model runs locally via LM Studio or `llama.cpp`.
 
-```
-              ┌──────────────────────── ingestion ────────────────────────┐
-   PDFs  ──►  PyMuPDF  ──►  text chunks ─────────────┐
-                       └─►  figures ─► vision-LLM caption ─► text embeddings ─► ChromaDB
-                       └─►  full-page renders ───────────────► ColPali embeddings ─► disk
-              └────────────────────────────────────────────────────────────┘
-
-   question ─►  ┌─ route ─┬─ retrieve (text + visual) ─ grade ─┬─ generate ─► answer + citations
-                │         └────────── rewrite & retry ◄────────┘
-                └─ direct answer
+```mermaid
+flowchart LR
+    subgraph ingestion
+        PDFs --> PyMuPDF
+        PyMuPDF -->|text chunks| Embed
+        PyMuPDF -->|figures| VLM["vision-LLM caption"] --> Embed
+        Embed --> Chroma[("ChromaDB")]
+        PyMuPDF -->|page renders| ColQwen2 --> ColPali[("ColPali index")]
+    end
+    subgraph "query time (LangGraph agent)"
+        Q([question]) --> route
+        route -->|direct| direct["direct answer"]
+        route -->|retrieve| retrieve["retrieve<br/>text + visual"] --> grade
+        grade -->|"none relevant, below cap"| rewrite --> retrieve
+        grade -->|relevant| generate --> A([answer + citations])
+    end
+    Chroma -.-> retrieve
+    ColPali -.-> retrieve
 ```
 
 ## Why this is different from a typical RAG tutorial
@@ -31,6 +44,9 @@ leaves your machine.** Every model runs locally via LM Studio or `llama.cpp`.
 - **Genuinely agentic.** A LangGraph state machine routes, grades retrieved evidence,
   and self-corrects by rewriting the query and retrying (Corrective / Adaptive RAG) — not
   a single `retrieve → stuff → generate` shot.
+- **Tested where ML usually isn't.** 125 hermetic unit tests (no model servers, no
+  weights) cover the agent graph, every node, both retrievers, and the ingestion
+  pipeline — and retrieval tests assert that the *right page wins the ranking*.
 
 ## Quickstart
 
@@ -57,16 +73,26 @@ uv run local-rag status
 ```
 
 With LM Studio, stop the server from the app (or `lms server stop`); with llama.cpp,
-`./scripts/stop.sh`.
+`./scripts/stop.sh`. Every command and flag is in
+[docs/07-cli-reference.md](docs/07-cli-reference.md).
 
 ## Documentation
 
-- [docs/01-concepts.md](docs/01-concepts.md) — what agentic RAG is and the patterns it uses
-- [docs/02-methodology.md](docs/02-methodology.md) — how those patterns map onto this build
-- [docs/03-architecture.md](docs/03-architecture.md) — system design, data flow, the agent graph
-- [docs/04-setup.md](docs/04-setup.md) — detailed setup, model choices, troubleshooting
-- [docs/05-interview-prep.md](docs/05-interview-prep.md) — Q&A, tradeoffs, limitations, demo script
-- [docs/medium-article.md](docs/medium-article.md) — the write-up, with real output + a debugging war story
+| Doc | What it answers |
+|-----|-----------------|
+| [00 — Requirements](docs/00-requirements.md) | What it must do (FR-1…), and how fast / how big / how safe (NFRs) |
+| [01 — Concepts](docs/01-concepts.md) | What agentic RAG is and the patterns it uses |
+| [02 — Methodology](docs/02-methodology.md) | How those patterns map onto this build |
+| [03 — Architecture](docs/03-architecture.md) | What it is: containers, data flow, the agent graph (Mermaid) |
+| [04 — Setup](docs/04-setup.md) | Detailed setup, model choices, troubleshooting |
+| [05 — Interview prep](docs/05-interview-prep.md) | Q&A, tradeoffs, limitations, demo script |
+| [06 — System design](docs/06-system-design.md) | Why it is this way: goals, constraints, rejected alternatives, capacity, failure modes |
+| [07 — CLI reference](docs/07-cli-reference.md) | `ingest` / `ask` / `status`, every flag and env var |
+| [ADRs](docs/adr/README.md) | Five decision records: ColPali, three servers, ChromaDB, LangGraph, the transformers pin |
+| [Runbooks](docs/runbook-lm-studio.md) | Day-2 operations for [LM Studio](docs/runbook-lm-studio.md) and [llama.cpp](docs/runbook-llama-cpp.md) |
+| [Write-up](docs/medium-article.md) | The article, with real output and a debugging war story |
+
+Also: [CHANGELOG](CHANGELOG.md) · [CONTRIBUTING](CONTRIBUTING.md) · [SECURITY](SECURITY.md)
 
 ## Stack
 
@@ -80,6 +106,18 @@ With LM Studio, stop the server from the app (or `lms server stop`); with llama.
 | Vector DB          | ChromaDB (local, persistent)                        |
 | Agent orchestration| LangGraph                                           |
 
+## Development
+
+```bash
+uv sync --extra dev
+uv run ruff check . && uv run ruff format --check .
+uv run mypy src/local_rag --ignore-missing-imports
+uv run pytest            # 125 tests, ~3 s, no models; coverage floor 95%
+```
+
+CI runs exactly these and publishes `coverage.xml` as an artifact. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 Sergio Carrero

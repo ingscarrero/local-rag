@@ -2,31 +2,62 @@
 
 ## System overview
 
+Everything below runs on one machine. The three model servers bind to
+`127.0.0.1`; the only outbound connection is the one-time model download.
+
+```mermaid
+C4Container
+    title Container view — local-rag (single machine, no inference egress)
+
+    Person(user, "User", "Asks questions about private PDFs from a terminal")
+
+    System_Boundary(machine, "Local machine — everything binds to 127.0.0.1") {
+        Container(cli, "CLI", "Python · Typer + Rich", "local-rag ingest | ask | status")
+        Container(ingest, "Ingestion pipeline", "Python · PyMuPDF", "parse → chunk → caption → index")
+        Container(agent, "Agent", "Python · LangGraph", "route → retrieve → grade → rewrite ↺ → generate")
+        Container(colqwen, "ColQwen2 encoder", "colpali-engine · torch (MPS/CUDA/CPU)", "in-process page + query multi-vectors")
+        ContainerDb(chroma, "ChromaDB", "storage/chroma", "text chunks + figure captions, cosine")
+        ContainerDb(colpali, "ColPali index", "storage/colpali", "page_embeddings.pt + manifest.json")
+        Container(llm, "Chat LLM", "LM Studio / llama-server :8080", "route, grade, rewrite, generate")
+        Container(embed, "Embedding model", "LM Studio / llama-server :8081", "nomic-embed-text v1.5")
+        Container(vlm, "Vision LLM", "LM Studio / llama-server :8082", "figure captioning at ingest")
+    }
+
+    System_Ext(hf, "Hugging Face Hub", "One-time weight download; never contacted at query time")
+
+    Rel(user, cli, "runs")
+    Rel(cli, ingest, "ingest")
+    Rel(cli, agent, "ask")
+    Rel(ingest, vlm, "caption figures", "OpenAI-compatible HTTP")
+    Rel(ingest, embed, "embed chunks + captions", "OpenAI-compatible HTTP")
+    Rel(ingest, chroma, "upsert by content-hashed id")
+    Rel(ingest, colqwen, "encode page renders")
+    Rel(colqwen, colpali, "persist / load tensors")
+    Rel(agent, llm, "decisions + generation", "OpenAI-compatible HTTP")
+    Rel(agent, embed, "embed query")
+    Rel(agent, chroma, "cosine top-k")
+    Rel(agent, colqwen, "encode query, MaxSim over pages")
+    Rel(colqwen, hf, "first run only", "HTTPS")
+
+    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ LOCAL MACHINE (no network egress for inference)                                │
-│                                                                                │
-│  ┌────────────┐   ┌──────────────────────── llama.cpp ────────────────────┐   │
-│  │   PDFs      │   │  llama-server :8080  chat LLM   (Qwen2.5-7B-Instruct)  │   │
-│  │  (data/)    │   │  llama-server :8081  embeddings (nomic-embed v1.5)     │   │
-│  └─────┬──────┘   │  llama-server :8082  vision VLM (Qwen2.5-VL-7B)         │   │
-│        │          └────────────────────────────────────────────────────────┘   │
-│        │                         ▲            ▲             ▲                   │
-│        ▼                         │            │             │                   │
-│  ┌───────────────── ingestion ──┼────────────┼─────────────┼──────────────┐    │
-│  │ PyMuPDF parse                 │            │             │              │    │
-│  │   • text chunks ──────────────┼── embed ───┘             │              │    │
-│  │   • figures ── caption ───────┘── embed ──► ┌─────────────────────────┐ │    │
-│  │   • page renders ──────────────────────────►│ ChromaDB (text+caption) │ │    │
-│  │                       │                     └─────────────────────────┘ │    │
-│  │                       └─ ColQwen2 (MPS) ───► ┌─────────────────────────┐ │    │
-│  │                          (colpali-engine)    │ ColPali index (on disk) │ │    │
-│  └──────────────────────────────────────────── └─────────────────────────┘ │    │
-│                                                                                │
-│  ┌──────────────── query time: LangGraph agent ───────────────────────────┐   │
-│  │  route → retrieve(text+visual) → grade → [rewrite ↺] → generate         │   │
-│  └─────────────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────────┘
+
+### Ingestion data flow
+
+One `parse_pdf` pass yields three artefacts per page; two of them end up in
+ChromaDB (as text), the third in the ColPali index (as pixels).
+
+```mermaid
+flowchart LR
+    PDF[("PDFs in data/")] --> P["parse_pdf<br/>PyMuPDF"]
+    P --> T["page text"] --> C["chunk_page_text<br/>220 words, 40 overlap"]
+    P --> F["embedded figures<br/>≥ 100×100 px"] --> V["caption_image<br/>vision LLM :8082"]
+    P --> R["page render @ 150 DPI<br/>storage/page_images/"]
+    C --> E["embed<br/>:8081"]
+    V --> E
+    E --> DB[("ChromaDB<br/>kind = text | caption")]
+    R --> Q["ColQwen2 encoder<br/>in-process"]
+    Q --> CP[("ColPali index<br/>page_embeddings.pt + manifest.json")]
 ```
 
 ## Component map (code)
@@ -78,24 +109,60 @@ for display and as ColPali inputs).
 
 ## The agent graph
 
+The state machine, as wired in `agent/graph.py`:
+
+```mermaid
+flowchart TD
+    S((START)) --> route
+    route -- "route == direct" --> answer_directly --> E((END))
+    route -- "route == retrieve" --> retrieve
+    retrieve --> grade
+    grade -- "any relevant<br/>or iterations at cap" --> generate --> E
+    grade -- "none relevant<br/>and iterations below cap" --> rewrite
+    rewrite --> retrieve
 ```
-        START
-          │
-          ▼
-       ┌──────┐  route=="direct"   ┌───────────────┐
-       │route │ ─────────────────► │answer_directly│ ──► END
-       └──┬───┘                    └───────────────┘
-   route=="retrieve"
-          ▼
-      ┌────────┐      ┌────────┐  relevant>0 ┌──────────┐
-      │retrieve│ ───► │ grade  │ ───────────►│ generate │ ──► END
-      └────────┘      └───┬────┘             └──────────┘
-          ▲   relevant==0 & iters<cap │
-          │                            ▼
-          │                        ┌────────┐
-          └────────────────────────│rewrite │
-                                   └────────┘
+
+And the same loop as a sequence of calls, which is what the CLI's `trace`
+panel prints:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User (CLI)
+    participant G as LangGraph agent
+    participant L as Chat LLM (:8080)
+    participant TS as TextStore (Chroma + embed :8081)
+    participant CS as ColPaliStore (ColQwen2)
+
+    U->>G: ask "What does Figure 1 show?"
+    G->>L: route? (JSON, max 20 tokens)
+    L-->>G: {"route": "retrieve"}
+
+    loop until any passage is relevant, capped at MAX_AGENT_ITERATIONS (3)
+        G->>TS: query(current query, top_k = TEXT_TOP_K)
+        TS-->>G: text + caption hits (cosine)
+        G->>CS: query(current query, top_k = VISUAL_TOP_K)
+        CS-->>G: page hits (MaxSim)
+        G->>L: grade each text hit → {"relevant": bool}
+        L-->>G: per-passage verdicts
+        break ≥ 1 relevant, or cap reached
+            Note over G: proceed to generate
+        end
+        G->>L: rewrite query (keyword-rich)
+        L-->>G: new query
+    end
+
+    alt relevant text or visual hits exist
+        G->>L: generate from context + visual page refs
+        L-->>G: answer with (source p.N) citations
+    else no evidence at all
+        Note over G: canned "couldn't find evidence" — no LLM call
+    end
+    G-->>U: answer + trace + text sources + visual matches
 ```
+
+A greeting takes the short path: `route` returns `direct`, `answer_directly`
+makes one LLM call, and no retriever is touched.
 
 `AgentState` carries: `question`, current `query`, `route`, `text_hits`,
 `visual_hits`, graded `relevant`, `iterations`, `answer`, and an appendable

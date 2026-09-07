@@ -11,9 +11,11 @@ ColPali visual embeddings are handled separately in `retrieval.colpali_store`.
 from __future__ import annotations
 
 import base64
+from collections.abc import Sequence
 from functools import lru_cache
 
 from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
 
 from .config import settings
 
@@ -23,11 +25,15 @@ def _client(base_url: str) -> OpenAI:
     return OpenAI(base_url=base_url, api_key=settings.openai_api_key, timeout=600.0)
 
 
-def chat(messages: list[dict], temperature: float = 0.0, max_tokens: int = 1024) -> str:
+def chat(
+    messages: Sequence[ChatCompletionMessageParam],
+    temperature: float = 0.0,
+    max_tokens: int = 1024,
+) -> str:
     """Single-turn chat completion against the local reasoning LLM."""
     resp = _client(settings.llm_base_url).chat.completions.create(
         model=settings.llm_model,
-        messages=messages,
+        messages=list(messages),
         temperature=temperature,
         max_tokens=max_tokens,
     )
