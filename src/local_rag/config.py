@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     vlm_base_url: str = "http://127.0.0.1:8082/v1"
     vlm_model: str = "local-vlm"
 
-    openai_api_key: str = "sk-no-key-required"
+    openai_api_key: str = "not-a-real-key"
 
     # ColPali visual retrieval
     colpali_model: str = "vidore/colqwen2-v1.0"
