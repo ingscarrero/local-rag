@@ -19,6 +19,26 @@ All notable changes to this project are documented here. The format follows
   Decision Records under `docs/adr/`, `SECURITY.md`, and this changelog.
 - README badges for CI, coverage, licence, and Python version.
 
+### Changed
+- Dependencies re-locked (`uv lock --upgrade`) to clear every Dependabot alert
+  that has a fix compatible with the `transformers` 4.x pin (ADR-0005): 61 of 78
+  open alerts, across GitPython (dropped from the tree by streamlit 1.63),
+  Pillow 12.3.0, aiohttp 3.14.3, starlette 1.6.0, python-multipart 0.0.32,
+  langsmith 0.12.4, langchain 1.4.0, pydantic-settings 2.15.0, setuptools 84.0.0
+  and accelerate 1.15.0. Direct floors raised to `pillow>=12.3.0` and
+  `pydantic-settings>=2.14.2`; `[tool.uv] constraint-dependencies` pins the
+  transitive floors so a later re-lock cannot regress below the fixes.
+- Ruff configuration made explicit (`select = ["E4", "E7", "E9", "F"]`, Markdown
+  excluded) so lint and format results no longer change when ruff widens its
+  defaults, as 0.16 did.
+
+### Security
+- `SECURITY.md` gains a "Known unresolved advisories" section for the 17 alerts
+  that have no fix compatible with this project (`transformers` 4.x, `torch`
+  < 2.8 via `colpali-engine`, `chromadb` 1.5.9, and the `eval`-only `ragas` /
+  `diskcache`), each with the blocking reason, the mitigation, and the
+  re-check trigger.
+
 ### Fixed
 - mypy errors on the `openai` and `chromadb` call sites that had kept CI red
   since the initial commit.
