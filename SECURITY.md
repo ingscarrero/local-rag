@@ -73,6 +73,8 @@ this section and is re-evaluated whenever the blocking condition changes.
 | `ragas` 0.3.1 (`eval` extra only) | CVE-2026-6587 (SSRF in the multi-modal faithfulness metric) | No patched version: every release up to the latest (0.4.3) is in the vulnerable range. | Optional extra, not installed by `uv sync`. Not imported anywhere in `src/`; evaluation scripts run offline against the local model endpoints and do not use the multi-modal faithfulness metric. |
 | `diskcache` 5.6.3 (via `ragas`, `eval` extra only) | CVE-2025-69872 (unsafe pickle deserialisation of cache entries) | No patched version. | Same optional extra as `ragas`. The cache directory is local and user-owned; nothing writes untrusted cache entries into it. |
 
-Re-check triggers: a `colpali-engine` release that supports `transformers` 5.x
-adapters correctly (re-run the ADR-0005 ranking check before adopting it), a
-`chromadb` release above 1.5.9, or a `ragas` release above 0.4.3.
+Re-check triggers: any `colpali-engine` bump — whether it stays on the
+`transformers` 4.x line with a newer `torch` cap (0.3.13 is the current
+candidate) or moves to a release that applies 5.x adapters correctly — must
+first pass the real-model ranking check in ADR-0005; a `chromadb` release above
+1.5.9; or a `ragas` release above 0.4.3.
