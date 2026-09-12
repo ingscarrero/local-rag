@@ -75,6 +75,14 @@ constraint-dependencies = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Prose is not code: ruff >= 0.16 formats fenced Python blocks in Markdown by
+# default, which would rewrite the essays under docs/.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+# Pin the rule set explicitly (this was ruff's default selection before 0.16, which
+# widened the defaults) so lint results do not change with the tool version.
+select = ["E4", "E7", "E9", "F"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
