@@ -92,5 +92,6 @@ scripts/             # serve.sh / stop.sh (llama.cpp) + make_sample_pdf.py
 Open a GitHub issue with:
 - OS + Apple Silicon / Intel / CUDA
 - Runtime: LM Studio version or `llama-server --version`
-- `.env` values (redact `OPENAI_API_KEY`)
+- The `*_BASE_URL` / `*_MODEL` / `COLPALI_*` values from your `.env` — never
+  paste API keys or the full file
 - Full terminal output of the failing command

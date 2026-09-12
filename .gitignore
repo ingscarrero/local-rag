@@ -12,11 +12,17 @@ coverage.xml
 htmlcov/
 
 # Environment — copy .env.example and fill in your values; never commit secrets
-.env
+.env*
+!.env.example
+
+# Credentials / certificates — never commit
+*.pem
+*.key
+*.p12
 
 # Runtime artefacts — generated at run time, not part of source
 storage/
-data/*.pdf
+data/*
 !data/.gitkeep
 
 # macOS

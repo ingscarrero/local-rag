@@ -29,12 +29,19 @@ Paste the full terminal output here, including tracebacks.
 - OS:
 - CPU / GPU: (Apple Silicon M-series / Intel / NVIDIA)
 - Runtime: LM Studio `lms --version` _or_ llama.cpp `llama-server --version`
-- Model(s) in use: (chat / embed / vision model ids from `lms ps` or `.env`)
 - Python: `uv run python --version`
-- ColPali device: (mps / cuda / cpu from `.env`)
 
-## `.env` (redact `OPENAI_API_KEY`)
+Relevant settings (only these keys — they contain no secrets):
 
 ```ini
-# Paste your .env here — remove or replace OPENAI_API_KEY value
+LLM_BASE_URL=
+LLM_MODEL=
+EMBED_BASE_URL=
+EMBED_MODEL=
+VLM_BASE_URL=
+VLM_MODEL=
+COLPALI_MODEL=
+COLPALI_DEVICE=
 ```
+
+**Never paste `OPENAI_API_KEY`, any other API key or token, or your full `.env`.**

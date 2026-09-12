@@ -142,7 +142,7 @@ started.
 | `EMBED_MODEL` | `local-embed` | `ingest`, `ask` | change ⇒ wipe `storage/chroma` and re-ingest |
 | `VLM_BASE_URL` | `http://127.0.0.1:8082/v1` | `ingest` | vision server for captions |
 | `VLM_MODEL` | `local-vlm` | `ingest` | must be a true vision model |
-| `OPENAI_API_KEY` | `sk-no-key-required` | all | any non-empty string; local servers ignore it |
+| `OPENAI_API_KEY` | `not-a-real-key` | all | any non-empty string; local servers ignore it |
 | `COLPALI_MODEL` | `vidore/colqwen2-v1.0` | `ingest`, `ask` | Hugging Face id; downloaded on first use |
 | `COLPALI_DEVICE` | `mps` | `ingest`, `ask` | `mps` \| `cuda` \| `cpu`; bf16 on GPU, fp32 on CPU |
 | `DATA_DIR` | `./data` | `ingest` | default `PATH` |
