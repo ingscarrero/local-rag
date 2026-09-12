@@ -23,7 +23,7 @@ os.environ.setdefault("EMBED_BASE_URL", "http://127.0.0.1:8081/v1")
 os.environ.setdefault("EMBED_MODEL", "local-embed")
 os.environ.setdefault("VLM_BASE_URL", "http://127.0.0.1:8082/v1")
 os.environ.setdefault("VLM_MODEL", "local-vlm")
-os.environ.setdefault("OPENAI_API_KEY", "sk-no-key")
+os.environ.setdefault("OPENAI_API_KEY", "not-a-real-key")
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 
 from local_rag import models  # noqa: E402

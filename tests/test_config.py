@@ -37,7 +37,7 @@ def test_defaults_point_at_the_llama_cpp_ports(clean_env: None) -> None:
     assert s.llm_base_url == "http://127.0.0.1:8080/v1"
     assert s.embed_base_url == "http://127.0.0.1:8081/v1"
     assert s.vlm_base_url == "http://127.0.0.1:8082/v1"
-    assert s.openai_api_key == "sk-no-key-required"
+    assert s.openai_api_key == "not-a-real-key"
     assert s.colpali_model == "vidore/colqwen2-v1.0"
     assert s.colpali_device == "mps"
     assert (s.text_top_k, s.visual_top_k, s.max_agent_iterations) == (5, 3, 3)
