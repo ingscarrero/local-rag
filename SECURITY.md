@@ -55,3 +55,26 @@ Out of scope:
 - `transformers` is pinned to the 4.x line on purpose (see
   [ADR-0005](docs/adr/0005-pin-transformers-4x.md)); bumping it silently breaks
   visual retrieval and must be accompanied by the ranking test described there.
+
+## Known unresolved advisories
+
+Last reviewed 2026-09-11 against the open Dependabot alerts. Every alert that had
+a patched version compatible with the `transformers` 4.x pin was resolved by
+re-locking (`uv lock --upgrade`) and raising the relevant floors in
+`pyproject.toml`. The advisories below have **no fix that this project can
+take**; each one is dismissed on GitHub as *tolerable risk* with a pointer to
+this section and is re-evaluated whenever the blocking condition changes.
+
+| Package (locked) | Advisories | Why it cannot be fixed | Why the risk is tolerable here |
+|---|---|---|---|
+| `transformers` 4.53.3 | CVE-2026-4372 (RCE, fixed 5.3.0); CVE-2026-5241 (code execution during model init, fixed 5.5.0); CVE-2026-9856 (`save_pretrained` path traversal, fixed 5.10.0); CVE-2026-1839 (`Trainer` code execution, fixed 5.0.0rc3). Dependabot shows these four CVEs as seven alerts because it records each once per manifest: three against `pyproject.toml` (the direct floor) and four against `uv.lock` (the resolved pin); all seven are dismissed with the same reason. | Fixes exist only on the 5.x line. 5.x silently breaks ColQwen2's LoRA adapter — see [ADR-0005](docs/adr/0005-pin-transformers-4x.md). | The only model loaded is the one named by `COLPALI_MODEL` (default `vidore/colqwen2-v1.0`), with `trust_remote_code` left off. That setting is read from the environment / `.env` by the single local user, so it carries the same trust as choosing which software to install: point it only at a model you trust. Nothing in the untrusted input path can change it — your PDFs reach `transformers` only as rasterised page images. The project never calls `Trainer` or `save_pretrained`. |
+| `torch` 2.7.1 | CVE-2025-3730 (fixed 2.8.0); CVE-2025-2999 (`unpack_sequence`, fixed 2.9.1); CVE-2025-3001 (`torch.lstm_cell`, fixed 2.10.0); CVE-2025-3000 (`torch.jit.script`, fixed 2.13.0) | `colpali-engine` 0.3.11 — the newest release that works with `transformers` 4.53 — requires `torch<2.8`. Moving to `colpali-engine` 0.3.13 (`torch<2.9`, `transformers<4.58`) would clear only CVE-2025-3730 and must first pass the real-model ranking check in ADR-0005. | None of the affected APIs (`lstm_cell`, `unpack_sequence`, TorchScript) is used. `torch.load` is called only on the embeddings tensor this tool wrote itself under `STORAGE_DIR`; no untrusted checkpoints or scripts are ever loaded. |
+| `chromadb` 1.5.9 | CVE-2026-45829 (pre-auth code injection); CVE-2026-45833 (code injection); CVE-2026-45830 (cross-user data access); CVE-2026-45831 (RBAC tenant check) | No patched version exists: 1.5.9 is the latest release on PyPI and is inside the vulnerable range. | All four advisories are in the Chroma **server** and its auth/RBAC providers. This project uses the embedded, in-process `chromadb.PersistentClient` on a local directory: no HTTP listener, no auth layer, no tenants, no remote users. The vulnerable code paths are never started. |
+| `ragas` 0.3.1 (`eval` extra only) | CVE-2026-6587 (SSRF in the multi-modal faithfulness metric) | No patched version: every release up to the latest (0.4.3) is in the vulnerable range. | Optional extra, not installed by `uv sync`, and not imported anywhere in this repository (no RAGAS entry point exists). Anyone who enables the `eval` extra and calls RAGAS themselves is subject to the advisory; keep that use offline and avoid the multi-modal faithfulness metric until a patched release exists. |
+| `diskcache` 5.6.3 (via `ragas`, `eval` extra only) | CVE-2025-69872 (unsafe pickle deserialisation of cache entries) | No patched version. | Same optional extra as `ragas`. The cache directory is local and user-owned; nothing writes untrusted cache entries into it. |
+
+Re-check triggers: any `colpali-engine` bump — whether it stays on the
+`transformers` 4.x line with a newer `torch` cap (0.3.13 is the current
+candidate) or moves to a release that applies 5.x adapters correctly — must
+first pass the real-model ranking check in ADR-0005; a `chromadb` release above
+1.5.9; or a `ragas` release above 0.4.3.
